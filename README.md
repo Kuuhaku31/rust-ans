@@ -16,6 +16,33 @@ cargo run -- ./src ./functions.csv
 - **输入:** 一个 Rust 源码目录, 例如 `./src/`.
 - **输出:** 一个 CSV 文件, 例如 `./functions.csv`.
 
+## draw.io 图形生成
+
+将函数索引 CSV 转换为 draw.io 可导入的 mxGraphModel XML:
+
+```sh
+cargo run --bin csv_to_drawio -- ./functions.csv ./functions.xml
+```
+
+可选参数用于调整容器网格、尺寸和函数矩形布局:
+
+```sh
+cargo run --bin csv_to_drawio -- --help
+```
+
+## XML 与 URL 编码互转
+
+自动识别 XML 或 URL 编码的 XML 并转换. 默认输出文件后缀分别为 `.txt` 和 `.xml`:
+
+```sh
+cargo run --bin to_xml -- ./functions.xml
+cargo run --bin to_xml -- ./functions.txt --output ./functions-decoded.xml
+```
+
+```sh
+cargo run --bin to_xml -- --help
+```
+
 ## 扫描规则
 
 递归扫描输入目录下的所有 `.rs` 文件, 提取以下函数定义:
