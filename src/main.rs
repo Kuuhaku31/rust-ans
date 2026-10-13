@@ -55,14 +55,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             .then(left.start_line.cmp(&right.start_line))
     });
 
-    let mut csv = String::from("文件相对路径,函数完整名称,起始行,结束行\n");
+    let mut csv = String::from("文件相对路径,函数完整名称,起始行,结束行,行数\n");
     for record in records {
         csv.push_str(&format!(
-            "{},{},{},{}\n",
+            "{},{},{},{},{}\n",
             csv_field(&record.file_path),
             csv_field(&record.full_name),
             record.start_line,
-            record.end_line
+            record.end_line,
+            record.end_line - record.start_line + 1
         ));
     }
     fs::write(output_path, csv)?;
