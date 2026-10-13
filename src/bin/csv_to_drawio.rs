@@ -366,44 +366,57 @@ fn function_label(function: &FunctionRecord, chars_per_line: usize) -> String {
     )
 }
 
-/// 根据源码行数选择函数矩形的填充颜色。
+/// 根据源码行数和可见性选择函数矩形的填充颜色。
 fn function_fill_color(
     line_count: usize,
     max_height_lines: usize,
     visibility: &str,
 ) -> &'static str {
-    let ratio = line_count as f64 / max_height_lines as f64;
-    if visibility == "pub(crate)" {
-        if line_count <= max_height_lines {
-            "#ffffff"
-        } else if ratio <= 1.5 {
-            "#eaf5e9"
-        } else if ratio <= 2.0 {
-            "#d5e8d4"
-        } else if ratio <= 3.0 {
-            "#bddfba"
-        } else if ratio <= 5.0 {
-            "#9fce9a"
-        } else if ratio <= 8.0 {
-            "#80bb7d"
-        } else {
-            "#629e60"
-        }
-    } else if line_count <= max_height_lines {
-        "#ffffff"
-    } else if ratio <= 1.5 {
-        "#eaf3ff"
-    } else if ratio <= 2.0 {
-        "#d6e6fa"
-    } else if ratio <= 3.0 {
-        "#bdd8f5"
-    } else if ratio <= 5.0 {
-        "#9fc5ed"
-    } else if ratio <= 8.0 {
-        "#80b3e6"
+    // 根据可见性选择颜色渐变, 绿色表示 pub(crate), 蓝色表示其他可见性。
+    let colors = if visibility == "pub(crate)" {
+        [
+            "#F5FAF4", // 正常范围: 极浅绿
+            "#E7F2E4", // 1.0-1.5 倍: 浅绿
+            "#D3E7CE", // 1.5-2.0 倍: 柔和绿
+            "#B9D9B2", // 2.0-3.0 倍: 中浅绿
+            "#98C68F", // 3.0-5.0 倍: 中绿
+            "#79B36F", // 5.0-8.0 倍: 深绿
+            "#5E9656", // 超过 8.0 倍: 深绿
+        ]
     } else {
-        "#629edb"
-    }
+        [
+            "#FFFFFF", // 正常范围: 白色
+            "#F0F6FD", // 1.0-1.5 倍: 极浅蓝
+            "#DDEAF9", // 1.5-2.0 倍: 浅蓝
+            "#C4DCF5", // 2.0-3.0 倍: 中浅蓝
+            "#A5C9ED", // 3.0-5.0 倍: 中蓝
+            "#83B3E2", // 5.0-8.0 倍: 深蓝
+            "#6397CD", // 超过 8.0 倍: 深蓝
+        ]
+    };
+
+    // 避免 max_height_lines 为 0 时发生除零问题。
+    let max_height_lines = max_height_lines.max(1);
+    let ratio = line_count as f64 / max_height_lines as f64;
+
+    // 根据函数行数占最大高度的比例选择颜色等级。
+    let index = if line_count <= max_height_lines {
+        0
+    } else if ratio <= 1.5 {
+        1
+    } else if ratio <= 2.0 {
+        2
+    } else if ratio <= 3.0 {
+        3
+    } else if ratio <= 5.0 {
+        4
+    } else if ratio <= 8.0 {
+        5
+    } else {
+        6
+    };
+
+    colors[index]
 }
 
 /// 将布局数据序列化为 draw.io mxGraphModel XML 字符串。
