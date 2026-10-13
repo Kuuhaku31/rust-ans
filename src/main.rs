@@ -16,6 +16,8 @@ struct FunctionRecord {
     file_path: String,
     /// 函数在 crate 模块结构中的完整名称
     full_name: String,
+    /// 函数的 Rust 可见性
+    visibility: String,
     /// 函数定义的起始行号
     start_line: usize,
     /// 函数定义的结束行号
@@ -55,12 +57,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             .then(left.start_line.cmp(&right.start_line))
     });
 
-    let mut csv = String::from("文件相对路径,函数完整名称,起始行,结束行,行数\n");
+    let mut csv = String::from("文件相对路径,函数完整名称,可见性,起始行,结束行,行数\n");
     for record in records {
         csv.push_str(&format!(
-            "{},{},{},{},{}\n",
+            "{},{},{},{},{},{}\n",
             csv_field(&record.file_path),
             csv_field(&record.full_name),
+            csv_field(&record.visibility),
             record.start_line,
             record.end_line,
             record.end_line - record.start_line + 1
@@ -121,6 +124,7 @@ fn collect_items(
         match item {
             Item::Fn(function) => records.push(make_record(
                 function.sig.ident.to_string(),
+                &function.vis,
                 function.span(),
                 module_path,
                 file_path,
@@ -133,6 +137,7 @@ fn collect_items(
                     if let ImplItem::Fn(method) = item {
                         records.push(make_record(
                             method.sig.ident.to_string(),
+                            &method.vis,
                             method.span(),
                             &method_path,
                             file_path,
@@ -147,6 +152,7 @@ fn collect_items(
                     if let TraitItem::Fn(method) = item {
                         records.push(make_record(
                             method.sig.ident.to_string(),
+                            &trait_item.vis,
                             method.span(),
                             &trait_path,
                             file_path,
@@ -169,6 +175,7 @@ fn collect_items(
 /// 根据函数名称, 源码范围和模块路径构造索引记录
 fn make_record(
     name: String,
+    visibility: &syn::Visibility,
     span: Span,
     module_path: &[String],
     file_path: &str,
@@ -183,8 +190,37 @@ fn make_record(
     FunctionRecord {
         file_path: file_path.to_owned(),
         full_name,
+        visibility: visibility_name(visibility),
         start_line: start.line,
         end_line: end.line,
+    }
+}
+
+/// 将 Rust 可见性语法转换为 CSV 中的简洁名称
+fn visibility_name(visibility: &syn::Visibility) -> String {
+    match visibility {
+        syn::Visibility::Inherited => "private".to_owned(),
+        syn::Visibility::Public(_) => "pub".to_owned(),
+        syn::Visibility::Restricted(restricted) => {
+            let path = restricted
+                .path
+                .segments
+                .iter()
+                .map(|segment| segment.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+            let leading_colon = if restricted.path.leading_colon.is_some() {
+                "::"
+            } else {
+                ""
+            };
+            let in_prefix = if restricted.in_token.is_some() {
+                "in "
+            } else {
+                ""
+            };
+            format!("pub({in_prefix}{leading_colon}{path})")
+        }
     }
 }
 

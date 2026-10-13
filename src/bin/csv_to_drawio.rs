@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 const FILE_COLUMN: &str = "文件相对路径";
 const NAME_COLUMN: &str = "函数完整名称";
+const VISIBILITY_COLUMN: &str = "可见性";
 const START_COLUMN: &str = "起始行";
 const END_COLUMN: &str = "结束行";
 
@@ -15,6 +16,8 @@ const END_COLUMN: &str = "结束行";
 struct FunctionRecord {
     /// 函数完整名称。
     name: String,
+    /// 函数的 Rust 可见性。
+    visibility: String,
     /// 函数定义的起始行号。
     start_line: usize,
     /// 函数定义的结束行号。
@@ -187,6 +190,7 @@ fn read_csv(path: &Path) -> Result<BTreeMap<String, Vec<FunctionRecord>>, Box<dy
     };
     let file_index = index(FILE_COLUMN)?;
     let name_index = index(NAME_COLUMN)?;
+    let visibility_index = headers.iter().position(|header| header == VISIBILITY_COLUMN);
     let start_index = index(START_COLUMN)?;
     let end_index = index(END_COLUMN)?;
     let mut grouped: BTreeMap<String, Vec<FunctionRecord>> = BTreeMap::new();
@@ -196,6 +200,10 @@ fn read_csv(path: &Path) -> Result<BTreeMap<String, Vec<FunctionRecord>>, Box<dy
         let line_number = row_index + 2;
         let file_path = row.get(file_index).unwrap_or("").trim();
         let name = row.get(name_index).unwrap_or("").trim();
+        let visibility = visibility_index
+            .and_then(|index| row.get(index))
+            .unwrap_or("")
+            .trim();
         if file_path.is_empty() || name.is_empty() {
             return Err(format!("CSV 第 {line_number} 行缺少文件路径或函数名称.").into());
         }
@@ -217,6 +225,7 @@ fn read_csv(path: &Path) -> Result<BTreeMap<String, Vec<FunctionRecord>>, Box<dy
             .or_default()
             .push(FunctionRecord {
                 name: name.to_owned(),
+                visibility: visibility.to_owned(),
                 start_line,
                 end_line,
             });
@@ -349,18 +358,40 @@ fn function_label(function: &FunctionRecord, chars_per_line: usize) -> String {
         .join("<br/>");
     let line_count = function.end_line - function.start_line + 1;
     format!(
-        "{name}<br/><span style=\"font-size:10px;color:#666666\">L{}-L{} ({} lines)</span>",
-        function.start_line, function.end_line, line_count
+        "{name}<br/><span style=\"font-size:10px;color:#666666\">可见性: {} | L{}-L{} ({} lines)</span>",
+        xml_escape(&function.visibility),
+        function.start_line,
+        function.end_line,
+        line_count
     )
 }
 
 /// 根据源码行数选择函数矩形的填充颜色。
-fn function_fill_color(line_count: usize, max_height_lines: usize) -> &'static str {
-    if line_count <= max_height_lines {
-        return "#ffffff";
-    }
+fn function_fill_color(
+    line_count: usize,
+    max_height_lines: usize,
+    visibility: &str,
+) -> &'static str {
     let ratio = line_count as f64 / max_height_lines as f64;
-    if ratio <= 1.5 {
+    if visibility == "pub(crate)" {
+        if line_count <= max_height_lines {
+            "#ffffff"
+        } else if ratio <= 1.5 {
+            "#eaf5e9"
+        } else if ratio <= 2.0 {
+            "#d5e8d4"
+        } else if ratio <= 3.0 {
+            "#bddfba"
+        } else if ratio <= 5.0 {
+            "#9fce9a"
+        } else if ratio <= 8.0 {
+            "#80bb7d"
+        } else {
+            "#629e60"
+        }
+    } else if line_count <= max_height_lines {
+        "#ffffff"
+    } else if ratio <= 1.5 {
         "#eaf3ff"
     } else if ratio <= 2.0 {
         "#d6e6fa"
@@ -395,7 +426,11 @@ fn generate_xml(layouts: &[FileLayout], options: &Options) -> String {
         let child_width = options.container_width - 2 * options.container_padding;
         for (function, function_height) in layout.functions.iter().zip(&layout.function_heights) {
             let line_count = function.end_line - function.start_line + 1;
-            let fill_color = function_fill_color(line_count, options.max_height_lines);
+            let fill_color = function_fill_color(
+                line_count,
+                options.max_height_lines,
+                &function.visibility,
+            );
             xml.push_str(&format!(
                 "    <mxCell id=\"{next_id}\" value=\"{}\" style=\"{function_style}fillColor={fill_color};\" vertex=\"1\" parent=\"{container_id}\">\n      <mxGeometry x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" as=\"geometry\"/>\n    </mxCell>\n",
                 xml_escape(&function_label(function, options.chars_per_line)),
